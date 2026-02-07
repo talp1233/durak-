@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Durak Online Lobby</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #111827;
+        color: #f9fafb;
+      }
+      .container {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #1f2937;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      input,
+      button,
+      select {
+        padding: 10px 12px;
+        border-radius: 6px;
+        border: 1px solid #374151;
+        background: #111827;
+        color: #f9fafb;
+        margin-right: 8px;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .vote {
+        background: #111827;
+        border: 1px solid #4b5563;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .vote.active {
+        border-color: #22d3ee;
+        color: #22d3ee;
+      }
+      #hand button.active {
+        border-color: #f59e0b;
+        color: #f59e0b;
+      }
+      .player-list {
+        margin-bottom: 8px;
+      }
+      .player {
+        padding: 4px 0;
+      }
+      .card-item {
+        min-width: 44px;
+        background: #0f172a;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        font-weight: bold;
+      }
+      .card-item.red {
+        color: #f87171;
+      }
+      #turn-timer {
+        margin: 8px 0;
+        font-weight: bold;
+      }
+      .emoji {
+        font-size: 20px;
+      }
+      .log {
+        font-family: monospace;
+        white-space: pre-wrap;
+        background: #0f172a;
+        padding: 12px;
+        border-radius: 8px;
+        height: 160px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Durak Online Lobby</h1>
+
+      <div class="card">
+        <h2>Connect</h2>
+        <div class="row">
+          <input id="name" placeholder="Player name" />
+          <input id="room" placeholder="Room code" />
+          <button id="join">Join / Create</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Room</h2>
+        <p id="room-info">Not connected.</p>
+        <div id="players"></div>
+        <div class="row">
+          <button class="vote" data-mode="4">Vote 4 (Omaha)</button>
+          <button class="vote" data-mode="6">Vote 6 (Durak)</button>
+          <button id="start">Start Game</button>
+        </div>
+        <p id="vote-info"></p>
+      </div>
+
+      <div class="card">
+        <h2>Emoji</h2>
+        <div class="row" id="emoji-bar"></div>
+      </div>
+
+      <div class="card">
+        <h2>Game State</h2>
+        <div id="game-meta"></div>
+        <div id="turn-timer"></div>
+        <div class="row" id="game-actions">
+          <select id="attack-index"></select>
+          <button id="attack">Attack with selected</button>
+          <button id="defend">Defend selected</button>
+          <button id="discard">Discard selected</button>
+          <button id="end-attack">End Attack</button>
+          <button id="take-cards">Take Cards</button>
+        </div>
+        <div id="hand" class="row"></div>
+        <div class="log" id="game-state"></div>
+      </div>
+
+      <div class="card">
+        <h2>Log</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
