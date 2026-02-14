@@ -56,10 +56,7 @@
         border-color: #22d3ee;
         color: #22d3ee;
       }
-      #hand button.active {
-        border-color: #f59e0b;
-        color: #f59e0b;
-      }
+      /* hand card selection handled by .card-item.active */
       .player-list {
         margin-bottom: 8px;
       }
@@ -67,15 +64,117 @@
         padding: 4px 0;
       }
       .card-item {
-        min-width: 44px;
-        background: #0f172a;
-        border: 1px solid #374151;
+        position: relative;
+        min-width: 60px;
+        width: 60px;
+        height: 88px;
+        background: #fffbe6;
+        border: 2px solid #d1d5db;
         border-radius: 8px;
         font-weight: bold;
+        color: #1e293b;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        transition: transform 0.15s, box-shadow 0.15s;
+        font-size: 13px;
+        line-height: 1.1;
+        user-select: none;
+      }
+      .card-item:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+      }
+      .card-item .card-rank {
+        font-size: 16px;
+        font-weight: 900;
+      }
+      .card-item .card-suit {
+        font-size: 22px;
+        line-height: 1;
+      }
+      .card-item .card-corner {
+        position: absolute;
+        top: 3px;
+        left: 5px;
+        font-size: 10px;
+        line-height: 1;
+        text-align: center;
+      }
+      .card-item .card-corner-br {
+        position: absolute;
+        bottom: 3px;
+        right: 5px;
+        font-size: 10px;
+        line-height: 1;
+        text-align: center;
+        transform: rotate(180deg);
       }
       .card-item.red {
-        color: #f87171;
+        color: #dc2626;
       }
+      .card-item.black {
+        color: #1e293b;
+      }
+      #hand .card-item.active {
+        border-color: #f59e0b;
+        transform: translateY(-10px);
+        box-shadow: 0 8px 20px rgba(245,158,11,0.4);
+      }
+      .table-pair {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      .table-pair .card-item {
+        width: 52px;
+        height: 76px;
+        min-width: 52px;
+        font-size: 11px;
+      }
+      .table-pair .card-item .card-rank {
+        font-size: 14px;
+      }
+      .table-pair .card-item .card-suit {
+        font-size: 18px;
+      }
+      .table-pair .defense-card {
+        margin-top: -30px;
+        margin-left: 16px;
+      }
+      .table-pair .undefended {
+        width: 52px;
+        height: 76px;
+        border: 2px dashed #4b5563;
+        border-radius: 8px;
+        margin-top: -30px;
+        margin-left: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6b7280;
+        font-size: 11px;
+      }
+      #table-area {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        min-height: 90px;
+        padding: 8px 0;
+      }
+      .trump-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 18px;
+      }
+      .trump-badge.red { color: #dc2626; }
+      .trump-badge.black { color: #f9fafb; }
       #turn-timer {
         margin: 8px 0;
         font-weight: bold;
@@ -125,25 +224,28 @@
       </div>
 
       <div class="card">
-        <h2>Game State</h2>
+        <h2>Game</h2>
         <div id="game-meta"></div>
         <div id="turn-timer"></div>
+        <div id="table-area"></div>
         <div class="row" id="game-actions">
-          <select id="attack-index"></select>
-          <button id="attack">Attack with selected</button>
-          <button id="defend">Defend selected</button>
-          <button id="discard">Discard selected</button>
+          <select id="attack-index" style="display:none"></select>
+          <button id="attack">Attack</button>
+          <button id="defend">Defend</button>
+          <button id="discard">Discard</button>
           <button id="end-attack">End Attack</button>
           <button id="take-cards">Take Cards</button>
         </div>
+        <h3 style="margin:8px 0 4px">Your Hand</h3>
         <div id="hand" class="row"></div>
-        <div class="log" id="game-state"></div>
       </div>
 
-      <div class="card">
-        <h2>Log</h2>
-        <div class="log" id="log"></div>
-      </div>
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer;color:#6b7280">Log</summary>
+        <div class="card">
+          <div class="log" id="log"></div>
+        </div>
+      </details>
     </div>
 
     <script src="/app.js"></script>

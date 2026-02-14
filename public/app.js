@@ -8,7 +8,7 @@ const roomInput = document.getElementById("room");
 const voteButtons = document.querySelectorAll(".vote");
 const emojiBar = document.getElementById("emoji-bar");
 const playersEl = document.getElementById("players");
-const gameStateEl = document.getElementById("game-state");
+// game-state log div removed – table is rendered visually now
 const handEl = document.getElementById("hand");
 const gameMetaEl = document.getElementById("game-meta");
 const turnTimerEl = document.getElementById("turn-timer");
@@ -38,6 +38,34 @@ const suitSymbols = {
 
 const suitOrder = ["H", "D", "C", "S"];
 
+const rankNames = {
+  2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10",
+  11: "J", 12: "Q", 13: "K", 14: "A",
+};
+
+function rankLabel(rank) {
+  return rankNames[rank] || String(rank);
+}
+
+function isRedSuit(suit) {
+  return suit === "H" || suit === "D";
+}
+
+function createCardElement(card, extraClass) {
+  const el = document.createElement("button");
+  el.className = "card-item" + (isRedSuit(card.suit) ? " red" : " black") + (extraClass ? " " + extraClass : "");
+  const symbol = suitSymbols[card.suit] || card.suit;
+  const rLabel = rankLabel(card.rank);
+  el.innerHTML =
+    `<span class="card-corner">${rLabel}<br>${symbol}</span>` +
+    `<span class="card-rank">${rLabel}</span>` +
+    `<span class="card-suit">${symbol}</span>` +
+    `<span class="card-corner-br">${rLabel}<br>${symbol}</span>`;
+  return el;
+}
+
+const tableArea = document.getElementById("table-area");
+
 function log(message) {
   const time = new Date().toLocaleTimeString();
   logEl.textContent += `[${time}] ${message}\n`;
@@ -65,13 +93,7 @@ function renderHand(cards = [], trumpSuit = null) {
     });
   }
   sorted.forEach((card) => {
-    const button = document.createElement("button");
-    button.className = "card-item";
-    const symbol = suitSymbols[card.suit] || card.suit;
-    button.textContent = `${card.rank}${symbol}`;
-    if (card.suit === "H" || card.suit === "D") {
-      button.classList.add("red");
-    }
+    const button = createCardElement(card);
     button.addEventListener("click", () => {
       selectedCardId = card.id;
       Array.from(handEl.children).forEach((child) => child.classList.remove("active"));
@@ -81,35 +103,78 @@ function renderHand(cards = [], trumpSuit = null) {
   });
 }
 
+function renderTable(state) {
+  tableArea.innerHTML = "";
+  if (!state) return;
+  if (state.mode === "6") {
+    attackIndexSelect.innerHTML = "";
+    state.table.forEach((pair, index) => {
+      const pairEl = document.createElement("div");
+      pairEl.className = "table-pair";
+      pairEl.appendChild(createCardElement(pair.attack));
+      if (pair.defense) {
+        const defEl = createCardElement(pair.defense, "defense-card");
+        pairEl.appendChild(defEl);
+      } else {
+        const placeholder = document.createElement("div");
+        placeholder.className = "undefended";
+        placeholder.textContent = "?";
+        pairEl.appendChild(placeholder);
+      }
+      pairEl.addEventListener("click", () => {
+        attackIndexSelect.value = index;
+        document.querySelectorAll(".table-pair").forEach((p) => (p.style.outline = "none"));
+        pairEl.style.outline = "2px solid #22d3ee";
+      });
+      tableArea.appendChild(pairEl);
+
+      const option = document.createElement("option");
+      option.value = index;
+      const atkLabel = rankLabel(pair.attack.rank) + (suitSymbols[pair.attack.suit] || "");
+      const defLabel = pair.defense ? rankLabel(pair.defense.rank) + (suitSymbols[pair.defense.suit] || "") : "?";
+      option.textContent = `${index + 1}: ${atkLabel} / ${defLabel}`;
+      attackIndexSelect.appendChild(option);
+    });
+  } else if (state.mode === "4") {
+    state.board.forEach((card) => {
+      const el = createCardElement(card);
+      el.style.cursor = "default";
+      tableArea.appendChild(el);
+    });
+  }
+}
+
+function findPlayerName(id) {
+  if (!currentRoom) return id;
+  const p = currentRoom.players.find((pl) => pl.id === id);
+  return p ? p.name : id;
+}
+
 function renderGameState(state) {
   if (!state) {
-    gameStateEl.textContent = "No game started.";
-    gameMetaEl.textContent = "";
+    tableArea.innerHTML = "";
+    gameMetaEl.innerHTML = "";
     renderHand([]);
     turnTimerEl.textContent = "";
     return;
   }
-  gameStateEl.textContent = JSON.stringify(state, null, 2);
-  attackIndexSelect.innerHTML = "";
   if (state.mode === "6") {
-    gameMetaEl.textContent = `Durak · Phase: ${state.phase} · Trump: ${state.trumpSuit}`;
-    state.table.forEach((pair, index) => {
-      const option = document.createElement("option");
-      const defenseLabel = pair.defense
-        ? `${pair.defense.rank}${suitSymbols[pair.defense.suit] || pair.defense.suit}`
-        : "—";
-      option.value = index;
-      option.textContent = `Attack ${index + 1}: ${pair.attack.rank}${
-        suitSymbols[pair.attack.suit] || pair.attack.suit
-      } / ${defenseLabel}`;
-      attackIndexSelect.appendChild(option);
-    });
+    const trumpSymbol = suitSymbols[state.trumpSuit] || state.trumpSuit;
+    const trumpColor = isRedSuit(state.trumpSuit) ? "red" : "black";
+    const attackerName = findPlayerName(state.attackerId);
+    const defenderName = findPlayerName(state.defenderId);
+    const phaseLabel = state.phase === "attack" ? "Attack" : state.phase === "defend" ? "Defend" : state.phase === "complete" ? "Game Over" : state.phase;
+    const handsInfo = state.hands.map((h) => `${findPlayerName(h.playerId)}: ${h.count}`).join(" | ");
+    gameMetaEl.innerHTML =
+      `<div style="margin-bottom:6px"><b>Durak</b> · ${phaseLabel} · Trump: <span class="trump-badge ${trumpColor}">${trumpSymbol}</span> · Deck: ${state.deckCount}</div>` +
+      `<div style="margin-bottom:6px">Attacker: <b>${attackerName}</b> · Defender: <b>${defenderName}</b></div>` +
+      `<div style="font-size:13px;color:#9ca3af">${handsInfo}</div>`;
+    renderTable(state);
     const playerHand = state.hands.find((hand) => hand.playerId === playerId);
     renderHand(playerHand?.cards || [], state.trumpSuit);
   } else if (state.mode === "4") {
-    gameMetaEl.textContent = `Omaha 4 · Stage: ${state.stage} · Board: ${state.board
-      .map((card) => `${card.rank}${suitSymbols[card.suit] || card.suit}`)
-      .join(" ")}`;
+    gameMetaEl.innerHTML = `<div><b>Omaha 4</b> · Stage: ${state.stage}</div>`;
+    renderTable(state);
     const playerHand = state.hands.find((hand) => hand.playerId === playerId);
     renderHand(playerHand?.cards || []);
   }
