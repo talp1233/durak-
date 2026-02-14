@@ -125,6 +125,7 @@ function startDurak(room) {
     defenderIndex: playersOrder.length > 1 ? 1 : 0,
     phase: "attack",
     maxAttacks: Math.min(hands.get(playersOrder[1]).length, 6),
+    transferOccurred: false,
     durakLoserId: null,
     turn: null,
     turnDeadline: null,
@@ -269,44 +270,52 @@ function canDefend(gameState, attackCard, defenseCard) {
   return false;
 }
 
-function drawUpToSix(gameState) {
+function drawUpToSix(gameState, oldAttackerId, oldDefenderId) {
   const order = gameState.playersOrder;
-  const attackerId = order[gameState.attackerIndex];
-  const defenderId = order[gameState.defenderIndex];
   const drawOrder = [];
-
-  let idx = gameState.attackerIndex;
-  while (drawOrder.length < order.length) {
-    const playerId = order[idx];
-    if (playerId !== defenderId) {
-      drawOrder.push(playerId);
+  const startIdx = order.indexOf(oldAttackerId);
+  let idx = startIdx >= 0 ? startIdx : 0;
+  for (let i = 0; i < order.length; i += 1) {
+    const pid = order[idx];
+    if (pid !== oldDefenderId) {
+      drawOrder.push(pid);
     }
     idx = (idx + 1) % order.length;
   }
-  drawOrder.push(defenderId);
+  drawOrder.push(oldDefenderId);
 
-  for (const playerId of drawOrder) {
-    const hand = gameState.hands.get(playerId);
+  for (const pid of drawOrder) {
+    const hand = gameState.hands.get(pid);
+    if (!hand) continue;
     while (hand.length < 6 && gameState.deck.length > 0) {
       hand.push(gameState.deck.shift());
     }
   }
 }
 
+function nextPlayerIndex(order, fromIndex, skipId) {
+  let idx = (fromIndex + 1) % order.length;
+  const start = idx;
+  do {
+    if (order[idx] !== skipId) return idx;
+    idx = (idx + 1) % order.length;
+  } while (idx !== start);
+  return idx;
+}
+
 function endDurakRound(room, defenderTakes) {
   const gameState = room.gameState;
+  const oldAttackerId = gameState.playersOrder[gameState.attackerIndex];
+  const oldDefenderId = gameState.playersOrder[gameState.defenderIndex];
+
   if (defenderTakes) {
-    const defenderId = gameState.playersOrder[gameState.defenderIndex];
-    const hand = gameState.hands.get(defenderId);
+    const hand = gameState.hands.get(oldDefenderId);
     for (const pair of gameState.table) {
       hand.push(pair.attack);
       if (pair.defense) {
         hand.push(pair.defense);
       }
     }
-    gameState.attackerIndex = (gameState.defenderIndex + 1) % gameState.playersOrder.length;
-    gameState.defenderIndex =
-      (gameState.attackerIndex + 1) % gameState.playersOrder.length;
   } else {
     for (const pair of gameState.table) {
       gameState.discard.push(pair.attack);
@@ -314,45 +323,59 @@ function endDurakRound(room, defenderTakes) {
         gameState.discard.push(pair.defense);
       }
     }
-    gameState.attackerIndex = gameState.defenderIndex;
-    gameState.defenderIndex =
-      (gameState.attackerIndex + 1) % gameState.playersOrder.length;
   }
 
-  drawUpToSix(gameState);
+  drawUpToSix(gameState, oldAttackerId, oldDefenderId);
   gameState.table = [];
   gameState.phase = "attack";
-  const defenderHand =
-    gameState.hands.get(gameState.playersOrder[gameState.defenderIndex]) || [];
-  gameState.maxAttacks = Math.min(defenderHand.length, 6);
+  gameState.transferOccurred = false;
   orderHands(room);
-  pruneDurakPlayers(room);
-  setDurakTurn(room);
+  pruneDurakPlayers(room, oldAttackerId, oldDefenderId, defenderTakes);
+  if (gameState.phase !== "complete") {
+    const defenderHand =
+      gameState.hands.get(gameState.playersOrder[gameState.defenderIndex]) || [];
+    gameState.maxAttacks = Math.min(defenderHand.length, 6);
+    setDurakTurn(room);
+  }
 }
 
-function pruneDurakPlayers(room) {
+function pruneDurakPlayers(room, oldAttackerId, oldDefenderId, defenderTook) {
   const gameState = room.gameState;
-  const remaining = gameState.playersOrder.filter((playerId) => {
-    const hand = gameState.hands.get(playerId);
+  const remaining = gameState.playersOrder.filter((pid) => {
+    const hand = gameState.hands.get(pid);
     return hand && hand.length > 0;
   });
-  for (const playerId of gameState.playersOrder) {
-    const hand = gameState.hands.get(playerId);
+  for (const pid of gameState.playersOrder) {
+    const hand = gameState.hands.get(pid);
     if (!hand || hand.length === 0) {
-      gameState.hands.delete(playerId);
+      gameState.hands.delete(pid);
     }
   }
   gameState.playersOrder = remaining;
-  if (remaining.length === 1) {
-    gameState.durakLoserId = remaining[0];
+
+  if (remaining.length <= 1) {
+    gameState.durakLoserId = remaining.length === 1 ? remaining[0] : null;
     gameState.phase = "complete";
     if (gameState.turnTimeout) {
       clearTimeout(gameState.turnTimeout);
     }
-  } else {
-    gameState.attackerIndex = gameState.attackerIndex % remaining.length;
-    gameState.defenderIndex = (gameState.attackerIndex + 1) % remaining.length;
+    return;
   }
+
+  let newAttackerId;
+  if (defenderTook) {
+    const defIdx = remaining.indexOf(oldDefenderId);
+    const afterDef = defIdx >= 0 ? (defIdx + 1) % remaining.length : 0;
+    newAttackerId = remaining[afterDef];
+  } else {
+    newAttackerId = remaining.includes(oldDefenderId)
+      ? oldDefenderId
+      : remaining[0];
+  }
+
+  gameState.attackerIndex = remaining.indexOf(newAttackerId);
+  if (gameState.attackerIndex < 0) gameState.attackerIndex = 0;
+  gameState.defenderIndex = (gameState.attackerIndex + 1) % remaining.length;
 }
 
 function handleDurakAction(room, playerId, action) {
@@ -372,6 +395,44 @@ function handleDurakAction(room, playerId, action) {
     }
     gameState.table.push({ attack: card, defense: null });
     hand.splice(hand.indexOf(card), 1);
+    gameState.phase = "defend";
+    setDurakTurn(room);
+    orderHands(room);
+    return;
+  }
+
+  if (action.type === "TRANSFER") {
+    const defenderId = gameState.playersOrder[gameState.defenderIndex];
+    if (playerId !== defenderId) {
+      return;
+    }
+    if (gameState.table.some((pair) => pair.defense)) {
+      return;
+    }
+    if (gameState.playersOrder.length <= 2) {
+      return;
+    }
+    const card = hand.find((entry) => entry.id === action.cardId);
+    if (!card) {
+      return;
+    }
+    const attackRanks = new Set(gameState.table.map((pair) => pair.attack.rank));
+    if (!attackRanks.has(card.rank)) {
+      return;
+    }
+    const newDefIdx = (gameState.defenderIndex + 1) % gameState.playersOrder.length;
+    if (newDefIdx === gameState.attackerIndex) {
+      return;
+    }
+    const newDefenderHand = gameState.hands.get(gameState.playersOrder[newDefIdx]);
+    if (!newDefenderHand || newDefenderHand.length === 0) {
+      return;
+    }
+    gameState.table.push({ attack: card, defense: null });
+    hand.splice(hand.indexOf(card), 1);
+    gameState.defenderIndex = newDefIdx;
+    gameState.transferOccurred = true;
+    gameState.maxAttacks = Math.min(gameState.maxAttacks, 5);
     gameState.phase = "defend";
     setDurakTurn(room);
     orderHands(room);
@@ -550,25 +611,37 @@ function combinations(arr, choose) {
 
 function evaluateOmahaWinners(gameState) {
   const board = gameState.board;
-  const boardCombos = combinations(board, 5);
   const results = [];
   for (const playerId of gameState.playersOrder) {
-    const hand = gameState.hands.get(playerId);
-    const handCombos = [];
-    handCombos.push(...combinations(hand, 2));
-    handCombos.push(...combinations(hand, 1));
+    const hand = gameState.hands.get(playerId) || [];
+    const handCombos = combinations(hand, Math.min(hand.length, 2));
+    if (hand.length >= 1) handCombos.push(...combinations(hand, 1));
     handCombos.push([]);
     let bestRank = null;
     for (const h of handCombos) {
+      const need = 5 - h.length;
+      if (need < 0 || need > board.length) continue;
+      const boardCombos = combinations(board, need);
       for (const b of boardCombos) {
         const combo = [...h, ...b];
+        if (combo.length !== 5) continue;
         const rank = rankHand(combo);
         if (!bestRank || compareRanks(rank, bestRank) > 0) {
           bestRank = rank;
         }
       }
     }
-    results.push({ playerId, rank: bestRank });
+    if (!bestRank) {
+      const all = [...hand, ...board];
+      const fallback = combinations(all, Math.min(all.length, 5));
+      for (const c of fallback) {
+        const rank = rankHand(c);
+        if (!bestRank || compareRanks(rank, bestRank) > 0) {
+          bestRank = rank;
+        }
+      }
+    }
+    results.push({ playerId, rank: bestRank || [0] });
   }
   const best = results.reduce((acc, entry) => {
     if (!acc || compareRanks(entry.rank, acc.rank) > 0) {
@@ -605,6 +678,8 @@ function createRoomSnapshot(room, playerId) {
           count: gameState.hands.get(id)?.length || 0,
           cards: id === playerId ? gameState.hands.get(id) : undefined,
         })),
+        transferOccurred: gameState.transferOccurred,
+        maxAttacks: gameState.maxAttacks,
         durakLoserId: gameState.durakLoserId,
         turn: gameState.turn,
         turnDeadline: gameState.turnDeadline,
@@ -642,7 +717,7 @@ function createRoomSnapshot(room, playerId) {
       votes6: Array.from(room.votes.values()).filter((vote) => vote === "6").length,
     },
     playerCount: room.players.size,
-    gameState: viewState,
+    gameState: viewState || { started: false },
   };
 }
 
@@ -725,6 +800,16 @@ function handleVote(room, playerId, mode) {
   broadcastRoom(room);
 }
 
+function handleRestart(room, playerId) {
+  if (!room) return;
+  if (room.hostId !== playerId) return;
+  if (room.gameState.turnTimeout) clearTimeout(room.gameState.turnTimeout);
+  if (room.gameState.stageDeadlineInterval) clearInterval(room.gameState.stageDeadlineInterval);
+  room.gameState = { started: false, mode: null };
+  room.votes = new Map();
+  broadcastRoom(room);
+}
+
 function handleStart(room, playerId) {
   if (!room || room.gameState.started) {
     return;
@@ -750,7 +835,7 @@ function handleEmoji(room, playerId, emojiCode) {
     return;
   }
   for (const player of room.players.values()) {
-    if (player.socket.readyState === "open") {
+    if (player.socket && player.socket.readyState === "open") {
       player.socket.send(
         JSON.stringify({
           type: "EMOJI_EVENT",
@@ -940,6 +1025,9 @@ server.on("upgrade", (req, socket) => {
           break;
         case "START_GAME":
           handleStart(currentRoom, currentPlayerId);
+          break;
+        case "RESTART_GAME":
+          handleRestart(currentRoom, currentPlayerId);
           break;
         case "EMOJI_EVENT":
           handleEmoji(currentRoom, currentPlayerId, message.payload?.emojiCode);

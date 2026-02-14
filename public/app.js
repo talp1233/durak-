@@ -15,9 +15,11 @@ const turnTimerEl = document.getElementById("turn-timer");
 const attackIndexSelect = document.getElementById("attack-index");
 const attackBtn = document.getElementById("attack");
 const defendBtn = document.getElementById("defend");
+const transferBtn = document.getElementById("transfer");
 const discardBtn = document.getElementById("discard");
 const endAttackBtn = document.getElementById("end-attack");
 const takeCardsBtn = document.getElementById("take-cards");
+const restartBtn = document.getElementById("restart");
 
 const emojis = ["😂", "😡", "😎", "😭", "👏", "🤡", "🔥", "👍", "👎"];
 
@@ -243,7 +245,10 @@ function updateRoom(room) {
 
   voteInfoEl.textContent = `Votes: 4 = ${room.votes.votes4}/${room.playerCount}, 6 = ${room.votes.votes6}/${room.playerCount}`;
 
-  startBtn.disabled = !isHost || room.playerCount < 2 || room.gameState.started;
+  const gameStarted = room.gameState && room.gameState.started;
+  const gameComplete = gameStarted && (room.gameState.phase === "complete" || room.gameState.stage === "showdown");
+  startBtn.disabled = !isHost || room.playerCount < 2 || (gameStarted && !gameComplete);
+  restartBtn.style.display = (isHost && gameComplete) ? "inline-block" : "none";
 
   renderGameState(room.gameState);
   renderPlayers(room);
@@ -324,18 +329,25 @@ startBtn.addEventListener("click", () => {
 });
 
 attackBtn.addEventListener("click", () => {
-  if (!selectedCardId) {
+  if (selectedCardId == null) {
     return;
   }
   send("GAME_ACTION", { type: "PLAY_ATTACK", cardId: selectedCardId });
 });
 
 defendBtn.addEventListener("click", () => {
-  if (!selectedCardId) {
+  if (selectedCardId == null) {
     return;
   }
   const attackIndex = Number(attackIndexSelect.value);
   send("GAME_ACTION", { type: "PLAY_DEFENSE", cardId: selectedCardId, attackIndex });
+});
+
+transferBtn.addEventListener("click", () => {
+  if (selectedCardId == null) {
+    return;
+  }
+  send("GAME_ACTION", { type: "TRANSFER", cardId: selectedCardId });
 });
 
 endAttackBtn.addEventListener("click", () => {
@@ -347,10 +359,14 @@ takeCardsBtn.addEventListener("click", () => {
 });
 
 discardBtn.addEventListener("click", () => {
-  if (!selectedCardId) {
+  if (selectedCardId == null) {
     return;
   }
   send("GAME_ACTION", { type: "DISCARD", cardId: selectedCardId });
+});
+
+restartBtn.addEventListener("click", () => {
+  send("RESTART_GAME");
 });
 
 emojis.forEach((emoji) => {
