@@ -8,6 +8,13 @@ const ROOM_CAPACITY = 5;
 const MIN_PLAYERS_TO_START = 2;
 const DEFAULT_MODE = "6";
 const DISCONNECT_GRACE_MS = 60000;
+const BOT_PLAYER_ID = "__bot__";
+const BOT_NAME = "Bot";
+const BOT_DELAY_MS = 1500;
+
+function isBot(pid) {
+  return pid === BOT_PLAYER_ID;
+}
 
 const rooms = new Map();
 
@@ -212,6 +219,7 @@ function setOmahaDeadlines(room) {
   }
   gameState.stageDeadlineInterval = setInterval(() => {
     const now = Date.now();
+    let changed = false;
     for (const [playerId, deadline] of gameState.discardDeadlines.entries()) {
       if (deadline > now) {
         continue;
@@ -222,6 +230,10 @@ function setOmahaDeadlines(room) {
       }
       const randomCard = hand[Math.floor(Math.random() * hand.length)];
       handleOmahaAction(room, playerId, { type: "DISCARD", cardId: randomCard.id });
+      changed = true;
+    }
+    if (changed) {
+      broadcastRoom(room);
     }
   }, 1000);
 }
@@ -661,6 +673,7 @@ function createRoomSnapshot(room, playerId) {
   if (gameState.started) {
     if (gameState.mode === "6") {
       viewState = {
+        started: true,
         mode: "6",
         phase: gameState.phase,
         attackerId: gameState.playersOrder[gameState.attackerIndex],
@@ -687,6 +700,7 @@ function createRoomSnapshot(room, playerId) {
     }
     if (gameState.mode === "4") {
       viewState = {
+        started: true,
         mode: "4",
         stage: gameState.stage,
         board: gameState.board,
@@ -697,7 +711,7 @@ function createRoomSnapshot(room, playerId) {
         hands: gameState.playersOrder.map((id) => ({
           playerId: id,
           count: gameState.hands.get(id)?.length || 0,
-          cards: id === playerId ? gameState.hands.get(id) : undefined,
+          cards: (id === playerId || gameState.stage === "showdown") ? gameState.hands.get(id) : undefined,
         })),
         winners: gameState.winners,
       };
@@ -721,6 +735,75 @@ function createRoomSnapshot(room, playerId) {
   };
 }
 
+function botSortHand(hand, trumpSuit) {
+  return [...hand].sort((a, b) => {
+    const aTrump = a.suit === trumpSuit ? 1 : 0;
+    const bTrump = b.suit === trumpSuit ? 1 : 0;
+    if (aTrump !== bTrump) return aTrump - bTrump;
+    return a.rank - b.rank;
+  });
+}
+
+function botAttack(room, gs, hand) {
+  if (gs.table.length > 0 && gs.table.every((p) => p.defense)) {
+    handleDurakAction(room, BOT_PLAYER_ID, { type: "END_ATTACK" });
+    broadcastRoom(room);
+    return;
+  }
+  const sorted = botSortHand(hand, gs.trumpSuit);
+  for (const card of sorted) {
+    if (canAttack(gs, BOT_PLAYER_ID, card)) {
+      handleDurakAction(room, BOT_PLAYER_ID, { type: "PLAY_ATTACK", cardId: card.id });
+      broadcastRoom(room);
+      return;
+    }
+  }
+  if (gs.table.length > 0 && gs.table.every((p) => p.defense)) {
+    handleDurakAction(room, BOT_PLAYER_ID, { type: "END_ATTACK" });
+    broadcastRoom(room);
+  }
+}
+
+function botDefend(room, gs, hand) {
+  const undefIdx = gs.table.findIndex((p) => !p.defense);
+  if (undefIdx === -1) return;
+  const attackCard = gs.table[undefIdx].attack;
+  const sorted = botSortHand(hand, gs.trumpSuit);
+  for (const card of sorted) {
+    if (canDefend(gs, attackCard, card)) {
+      handleDurakAction(room, BOT_PLAYER_ID, {
+        type: "PLAY_DEFENSE",
+        cardId: card.id,
+        attackIndex: undefIdx,
+      });
+      broadcastRoom(room);
+      return;
+    }
+  }
+  handleDurakAction(room, BOT_PLAYER_ID, { type: "TAKE_CARDS" });
+  broadcastRoom(room);
+}
+
+function botDecide(room) {
+  const gs = room.gameState;
+  if (!gs || gs.mode !== "6" || gs.phase === "complete") return;
+  if (gs.turn !== BOT_PLAYER_ID) return;
+  const hand = gs.hands.get(BOT_PLAYER_ID);
+  if (!hand || hand.length === 0) return;
+  if (gs._botTimeout) clearTimeout(gs._botTimeout);
+  gs._botTimeout = setTimeout(() => {
+    gs._botTimeout = null;
+    if (!gs.started || gs.phase === "complete") return;
+    const attackerId = gs.playersOrder[gs.attackerIndex];
+    const defenderId = gs.playersOrder[gs.defenderIndex];
+    if (gs.phase === "attack" && attackerId === BOT_PLAYER_ID) {
+      botAttack(room, gs, hand);
+    } else if (gs.phase === "defend" && defenderId === BOT_PLAYER_ID) {
+      botDefend(room, gs, hand);
+    }
+  }, BOT_DELAY_MS);
+}
+
 function broadcastRoom(room) {
   for (const player of room.players.values()) {
     if (player.socket && player.socket.readyState === "open") {
@@ -728,6 +811,9 @@ function broadcastRoom(room) {
         JSON.stringify({ type: "ROOM_UPDATE", payload: createRoomSnapshot(room, player.id) })
       );
     }
+  }
+  if (room.players.has(BOT_PLAYER_ID)) {
+    botDecide(room);
   }
 }
 
@@ -797,6 +883,9 @@ function handleVote(room, playerId, mode) {
     return;
   }
   room.votes.set(playerId, mode);
+  if (room.players.has(BOT_PLAYER_ID)) {
+    room.votes.set(BOT_PLAYER_ID, mode);
+  }
   broadcastRoom(room);
 }
 
@@ -805,6 +894,7 @@ function handleRestart(room, playerId) {
   if (room.hostId !== playerId) return;
   if (room.gameState.turnTimeout) clearTimeout(room.gameState.turnTimeout);
   if (room.gameState.stageDeadlineInterval) clearInterval(room.gameState.stageDeadlineInterval);
+  if (room.gameState._botTimeout) clearTimeout(room.gameState._botTimeout);
   room.gameState = { started: false, mode: null };
   room.votes = new Map();
   broadcastRoom(room);
@@ -877,6 +967,14 @@ function removePlayer(room, playerId) {
     return;
   }
 
+  const humanPlayers = Array.from(room.players.values()).filter((p) => !isBot(p.id));
+  if (humanPlayers.length === 0) {
+    if (room.gameState._botTimeout) clearTimeout(room.gameState._botTimeout);
+    if (room.gameState.turnTimeout) clearTimeout(room.gameState.turnTimeout);
+    rooms.delete(room.code);
+    return;
+  }
+
   if (room.hostId === playerId) {
     const [nextHost] = room.players.keys();
     room.hostId = nextHost;
@@ -886,7 +984,8 @@ function removePlayer(room, playerId) {
 }
 
 const server = http.createServer((req, res) => {
-  const safePath = req.url === "/" ? "/index.html" : req.url;
+  const urlPath = req.url.split("?")[0];
+  const safePath = urlPath === "/" ? "/index.html" : urlPath;
   const filePath = path.join(__dirname, "public", safePath);
   if (!filePath.startsWith(path.join(__dirname, "public"))) {
     res.writeHead(404);
@@ -949,6 +1048,8 @@ server.on("upgrade", (req, socket) => {
   let buffer = Buffer.alloc(0);
   let currentRoom = null;
   let currentPlayerId = null;
+
+  socket.on("error", () => {});
 
   socket.on("data", (data) => {
     buffer = Buffer.concat([buffer, data]);
@@ -1035,6 +1136,20 @@ server.on("upgrade", (req, socket) => {
         case "GAME_ACTION":
           handleGameAction(currentRoom, currentPlayerId, message.payload || {});
           break;
+        case "ADD_BOT": {
+          if (!currentRoom || currentRoom.gameState.started) break;
+          if (currentPlayerId !== currentRoom.hostId) break;
+          if (currentRoom.players.has(BOT_PLAYER_ID)) break;
+          if (currentRoom.players.size >= ROOM_CAPACITY) break;
+          currentRoom.players.set(BOT_PLAYER_ID, {
+            id: BOT_PLAYER_ID,
+            name: BOT_NAME,
+            socket: null,
+            disconnectTimeout: null,
+          });
+          broadcastRoom(currentRoom);
+          break;
+        }
         default:
           ws.send(JSON.stringify({ type: "ERROR", payload: { message: "Unknown event." } }));
       }
