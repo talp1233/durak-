@@ -441,24 +441,44 @@
   animation: slideUpIn 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
-/* Card played to table - pop in */
+/* Card played to table - flies up from hand */
 @keyframes cardToTable {
   0% {
     opacity: 0;
-    transform: scale(0.4) translateY(40px);
+    transform: translateY(60vh) scale(0.6) rotate(5deg);
   }
-  50% {
+  60% {
     opacity: 1;
-    transform: scale(1.08) translateY(-4px);
+    transform: translateY(-8px) scale(1.05) rotate(-1deg);
   }
   100% {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+/* Defense card lands on attack card */
+@keyframes defenseToTable {
+  0% {
+    opacity: 0;
+    transform: translateY(60vh) scale(0.6) rotate(-5deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.04) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
   }
 }
 
 .table-pair-game.anim-table-in {
-  animation: cardToTable 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: cardToTable 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.table-pair-game .defense-card.anim-defense-in {
+  animation: defenseToTable 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
 /* Card selection pop */

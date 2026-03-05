@@ -72,7 +72,10 @@ function showGameView() {
   lobbyView.style.display = "none";
   gameView.classList.add("active");
   document.body.style.padding = "0";
-  if (!wasAlreadyActive) previousHandIds = new Set();
+  if (!wasAlreadyActive) {
+    previousHandIds = new Set();
+    previousTableState = [];
+  }
   document.body.style.overflow = "hidden";
 }
 
@@ -108,7 +111,7 @@ function renderGameView(room) {
   renderOpponents(room, state);
   renderGameInfo(state);
   renderGameTableView(state);
-  renderActionBarView(state);
+  renderActionBarView(state, room);
   renderGameHandView(state);
   startGameTimer(state);
 }
@@ -161,10 +164,13 @@ function renderGameInfo(state) {
   gameInfoBar.classList.add("anim-fade");
 }
 
+let previousTableState = [];
+
 function renderGameTableView(state) {
   gameTable.innerHTML = "";
 
   if (state.phase === "complete") {
+    previousTableState = [];
     const resultEl = document.createElement("div");
     resultEl.className = "game-result anim-result";
     const loserName = state.durakLoserId ? findPlayerName(state.durakLoserId) : null;
@@ -175,10 +181,19 @@ function renderGameTableView(state) {
     return;
   }
 
+  let newPairCount = 0;
   state.table.forEach((pair, index) => {
+    const prevPair = previousTableState[index];
+    const isNewPair = !prevPair;
+    const isNewDefense = prevPair && !prevPair.defense && pair.defense;
+
     const pairEl = document.createElement("div");
-    pairEl.className = "table-pair-game anim-table-in";
-    pairEl.style.animationDelay = `${index * 80}ms`;
+    pairEl.className = "table-pair-game";
+    if (isNewPair) {
+      pairEl.classList.add("anim-table-in");
+      pairEl.style.animationDelay = `${newPairCount * 80}ms`;
+      newPairCount++;
+    }
     if (index === selectedAttackIndex) pairEl.classList.add("selected-pair");
 
     pairEl.appendChild(createGameCard(pair.attack));
@@ -186,6 +201,7 @@ function renderGameTableView(state) {
     if (pair.defense) {
       const defEl = createGameCard(pair.defense);
       defEl.classList.add("defense-card");
+      if (isNewDefense) defEl.classList.add("anim-defense-in");
       pairEl.appendChild(defEl);
     } else {
       const placeholder = document.createElement("div");
@@ -202,9 +218,11 @@ function renderGameTableView(state) {
 
     gameTable.appendChild(pairEl);
   });
+
+  previousTableState = state.table.map((p) => ({ attack: p.attack?.id, defense: p.defense?.id }));
 }
 
-function renderActionBarView(state) {
+function renderActionBarView(state, room) {
   actionBar.innerHTML = "";
 
   const isAttacker = state.attackerId === playerId;
@@ -212,12 +230,34 @@ function renderActionBarView(state) {
   const allDefended = state.table.length > 0 && state.table.every((p) => p.defense);
 
   if (state.phase === "complete") {
+    const votes = room ? room.votes : { votes4: 0, votes6: 0 };
+    const total = room ? room.playerCount : 0;
+
+    const voteRow = document.createElement("div");
+    voteRow.style.cssText = "display:flex;gap:8px;align-items:center;";
+
+    const durakVoteBtn = document.createElement("button");
+    durakVoteBtn.className = "action-btn primary anim-btn";
+    durakVoteBtn.textContent = `Durak (${votes.votes6}/${total})`;
+    durakVoteBtn.addEventListener("click", () => send("VOTE_MODE", { mode: "6" }));
+
+    const omahaVoteBtn = document.createElement("button");
+    omahaVoteBtn.className = "action-btn primary anim-btn";
+    omahaVoteBtn.textContent = `Omaha (${votes.votes4}/${total})`;
+    omahaVoteBtn.style.animationDelay = "0.05s";
+    omahaVoteBtn.addEventListener("click", () => send("VOTE_MODE", { mode: "4" }));
+
+    voteRow.appendChild(durakVoteBtn);
+    voteRow.appendChild(omahaVoteBtn);
+    actionBar.appendChild(voteRow);
+
     if (isHost) {
-      const btn = document.createElement("button");
-      btn.className = "action-btn success anim-btn";
-      btn.textContent = "New Game";
-      btn.addEventListener("click", () => send("RESTART_GAME"));
-      actionBar.appendChild(btn);
+      const newGameBtn = document.createElement("button");
+      newGameBtn.className = "action-btn success anim-btn";
+      newGameBtn.textContent = "Start New Game";
+      newGameBtn.style.animationDelay = "0.1s";
+      newGameBtn.addEventListener("click", () => send("START_NEW_GAME"));
+      actionBar.appendChild(newGameBtn);
     }
     return;
   }
@@ -428,12 +468,34 @@ function renderOmahaView(room) {
   actionBar.innerHTML = "";
   const isPending = state.pendingDiscards?.includes(playerId);
   if (state.stage === "showdown") {
+    const votes = room ? room.votes : { votes4: 0, votes6: 0 };
+    const total = room ? room.playerCount : 0;
+
+    const voteRow = document.createElement("div");
+    voteRow.style.cssText = "display:flex;gap:8px;align-items:center;";
+
+    const durakVoteBtn = document.createElement("button");
+    durakVoteBtn.className = "action-btn primary anim-btn";
+    durakVoteBtn.textContent = `Durak (${votes.votes6}/${total})`;
+    durakVoteBtn.addEventListener("click", () => send("VOTE_MODE", { mode: "6" }));
+
+    const omahaVoteBtn = document.createElement("button");
+    omahaVoteBtn.className = "action-btn primary anim-btn";
+    omahaVoteBtn.textContent = `Omaha (${votes.votes4}/${total})`;
+    omahaVoteBtn.style.animationDelay = "0.05s";
+    omahaVoteBtn.addEventListener("click", () => send("VOTE_MODE", { mode: "4" }));
+
+    voteRow.appendChild(durakVoteBtn);
+    voteRow.appendChild(omahaVoteBtn);
+    actionBar.appendChild(voteRow);
+
     if (isHost) {
-      const btn = document.createElement("button");
-      btn.className = "action-btn success anim-btn";
-      btn.textContent = "New Game";
-      btn.addEventListener("click", () => send("RESTART_GAME"));
-      actionBar.appendChild(btn);
+      const newGameBtn = document.createElement("button");
+      newGameBtn.className = "action-btn success anim-btn";
+      newGameBtn.textContent = "Start New Game";
+      newGameBtn.style.animationDelay = "0.1s";
+      newGameBtn.addEventListener("click", () => send("START_NEW_GAME"));
+      actionBar.appendChild(newGameBtn);
     }
   } else if (isPending) {
     const btn = document.createElement("button");

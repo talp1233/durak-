@@ -876,7 +876,8 @@ function handleVote(room, playerId, mode) {
   if (!room || !room.players.has(playerId)) {
     return;
   }
-  if (room.gameState.started) {
+  const gameComplete = room.gameState.started && (room.gameState.phase === "complete" || room.gameState.stage === "showdown");
+  if (room.gameState.started && !gameComplete) {
     return;
   }
   if (mode !== "4" && mode !== "6") {
@@ -896,6 +897,26 @@ function handleRestart(room, playerId) {
   if (room.gameState.stageDeadlineInterval) clearInterval(room.gameState.stageDeadlineInterval);
   if (room.gameState._botTimeout) clearTimeout(room.gameState._botTimeout);
   room.gameState = { started: false, mode: null };
+  room.votes = new Map();
+  broadcastRoom(room);
+}
+
+function handleStartNewGame(room, playerId) {
+  if (!room) return;
+  if (room.hostId !== playerId) return;
+  if (room.players.size < MIN_PLAYERS_TO_START) return;
+  // Clear old game state
+  if (room.gameState.turnTimeout) clearTimeout(room.gameState.turnTimeout);
+  if (room.gameState.stageDeadlineInterval) clearInterval(room.gameState.stageDeadlineInterval);
+  if (room.gameState._botTimeout) clearTimeout(room.gameState._botTimeout);
+  room.gameState = { started: false, mode: null };
+  // Start new game with current votes
+  const mode = decideMode(room);
+  if (mode === "6") {
+    startDurak(room);
+  } else {
+    startOmaha(room);
+  }
   room.votes = new Map();
   broadcastRoom(room);
 }
@@ -1129,6 +1150,9 @@ server.on("upgrade", (req, socket) => {
           break;
         case "RESTART_GAME":
           handleRestart(currentRoom, currentPlayerId);
+          break;
+        case "START_NEW_GAME":
+          handleStartNewGame(currentRoom, currentPlayerId);
           break;
         case "EMOJI_EVENT":
           handleEmoji(currentRoom, currentPlayerId, message.payload?.emojiCode);
