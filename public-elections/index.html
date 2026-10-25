@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ניחוש בחירות 2026</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{direction:rtl}
+body{font-family:Arial,"Helvetica Neue",sans-serif;background:#111827;color:#f9fafb;padding:16px;line-height:1.5}
+.container{max-width:800px;margin:0 auto}
+h1{font-size:28px;text-align:center;margin-bottom:2px}
+.subtitle{text-align:center;color:#9ca3af;margin-bottom:20px;font-size:14px}
+.card{background:#1f2937;border-radius:12px;padding:16px;margin-bottom:16px}
+.card h2{margin-bottom:12px;font-size:20px}
+input[type=text],input[type=number],button,select{padding:8px 12px;border-radius:6px;border:1px solid #374151;background:#111827;color:#f9fafb;font-size:14px}
+input[type=number]{width:60px;text-align:center;-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{opacity:1}
+button{cursor:pointer;font-weight:bold}
+button:disabled{opacity:.45;cursor:not-allowed}
+.name-row{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.name-row label{white-space:nowrap}
+.name-row input[type=text]{flex:1;min-width:140px}
+.party-grid{display:flex;flex-direction:column;gap:6px}
+.party-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:#111827}
+.party-info{flex:1;min-width:0}
+.party-name{font-weight:bold;font-size:15px}
+.party-leader{font-size:12px;color:#9ca3af}
+.threshold-badge{font-size:12px;min-width:70px;text-align:center}
+.threshold-badge.pass{color:#22c55e}
+.threshold-badge.fail{color:#ef4444}
+.total-bar{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:10px 12px;border-radius:8px;font-weight:bold;font-size:16px}
+.total-bar.ok{background:#064e3b;color:#34d399}
+.total-bar.bad{background:#450a0a;color:#f87171}
+.submit-btn{background:#2563eb;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:16px;width:100%;margin-top:10px}
+.submit-btn:not(:disabled):hover{background:#1d4ed8}
+.submit-msg{text-align:center;margin-top:8px;font-size:14px;color:#34d399}
+details{margin-bottom:0}
+details>summary{cursor:pointer;font-size:18px;font-weight:bold;padding:4px 0;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"◀ ";font-size:12px;transition:transform .2s}
+details[open]>summary::before{content:"▼ "}
+.poll-table-wrap{overflow-x:auto;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th,td{padding:6px 8px;text-align:center;border-bottom:1px solid #1f2937}
+th{background:#1f2937;color:#9ca3af;font-weight:600;position:sticky;top:0}
+td:first-child,th:first-child{text-align:right;position:sticky;right:0;background:#111827;z-index:1}
+th:first-child{background:#1f2937;z-index:2}
+.cell-pass{color:#34d399}
+.cell-border{color:#f59e0b}
+.cell-zero{color:#4b5563}
+.pred-table-wrap{overflow-x:auto;max-height:420px;overflow-y:auto}
+.pred-table-wrap table{min-width:700px}
+.pred-table-wrap td:first-child,.pred-table-wrap th:first-child{min-width:90px}
+.my-row{background:#1e3a5f !important}
+.my-row td:first-child{background:#1e3a5f !important}
+.results-card{background:#1a2332;border:2px solid #2563eb}
+.dist-table{width:100%;border-collapse:collapse}
+.dist-table th{background:#1f2937}
+.dist-table td,.dist-table th{padding:8px 12px;text-align:center;border-bottom:1px solid #374151}
+.dist-table td:nth-child(2){text-align:right}
+.medal{font-size:18px}
+.conn-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:6px;vertical-align:middle}
+.conn-dot.on{background:#22c55e}
+.conn-dot.off{background:#ef4444}
+.conn-status{font-size:12px;color:#6b7280;text-align:center;margin-bottom:8px}
+@media(max-width:500px){
+  .party-row{gap:4px;padding:5px 6px}
+  .party-name{font-size:13px}
+  input[type=number]{width:50px;padding:6px 4px}
+  .threshold-badge{min-width:55px;font-size:11px}
+  th,td{padding:4px 5px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>ניחוש בחירות 2026 🗳️</h1>
+  <p class="subtitle">כנסת ה-26 · 27 באוקטובר 2026</p>
+  <div class="conn-status"><span class="conn-dot off" id="conn-dot"></span> <span id="conn-text">מתחבר...</span></div>
+  <div class="card">
+    <h2>הניחוש שלך</h2>
+    <div class="name-row">
+      <label for="player-name">השם שלך:</label>
+      <input type="text" id="player-name" placeholder="הכנס שם" autocomplete="off">
+    </div>
+    <div class="party-grid" id="party-grid"></div>
+    <div class="total-bar bad" id="total-bar">
+      <span id="total-label">סה״כ: 0 / 120</span>
+      <span id="total-remaining">נותרו: 120</span>
+    </div>
+    <button class="submit-btn" id="submit-btn" disabled>שלח ניחוש</button>
+    <div class="submit-msg" id="submit-msg"></div>
+  </div>
+  <div class="card">
+    <details id="polls-details">
+      <summary>סקרים אחרונים 📊</summary>
+      <div class="poll-table-wrap" id="poll-table-wrap"></div>
+    </details>
+  </div>
+  <div class="card">
+    <h2>כל הניחושים</h2>
+    <div class="pred-table-wrap" id="pred-table-wrap">
+      <p style="color:#6b7280">עדיין אין ניחושים.</p>
+    </div>
+  </div>
+  <div class="card results-card" id="results-card" style="display:none">
+    <h2>טבלת מרחקים 🏆</h2>
+    <div id="results-wrap"></div>
+  </div>
+</div>
+<script>
+const PARTIES = [
+  { id: "yashar", name: "ישר!", leader: "גדי איזנקוט", abbr: "ישר!" },
+  { id: "likud", name: "הליכוד", leader: "בנימין נתניהו", abbr: "ליכוד" },
+  { id: "beyachad", name: "ביחד", leader: "נפתלי בנט + יאיר לפיד", abbr: "ביחד" },
+  { id: "democrats", name: "הדמוקרטים", leader: "יאיר גולן", abbr: "דמוקר׳" },
+  { id: "yisrael_beiteinu", name: "ישראל ביתנו", leader: "אביגדור ליברמן", abbr: "ישר׳ ביתנו" },
+  { id: "shas", name: "ש\"ס", leader: "אריה דרעי", abbr: "ש\"ס" },
+  { id: "otzma", name: "עוצמה יהודית", leader: "איתמר בן גביר", abbr: "עוצמה" },
+  { id: "utj", name: "יהדות התורה", leader: "יצחק גולדקנופף", abbr: "יהדות" },
+  { id: "religious_zionism", name: "הציונות הדתית", leader: "בצלאל סמוטריץ׳", abbr: "ציונות" },
+  { id: "joint_list", name: "הרשימה המשותפת", leader: "חד\"ש-תע\"ל-בל\"ד", abbr: "משותפת" },
+  { id: "raam", name: "רע\"ם", leader: "מנסור עבאס", abbr: "רע\"ם" },
+  { id: "reservists", name: "המילואימניקים", leader: "יועז הנדל + ירון זליכה", abbr: "מילואים" },
+  { id: "amcha", name: "עמך ישראל", leader: "עופר וינטר", abbr: "עמך" },
+  { id: "blue_white", name: "כחול לבן", leader: "בני גנץ", abbr: "כחול לבן" },
+];
+const POLLS = {
+  yashar:[23,22,22,15],likud:[21,19,20,30],beyachad:[13,14,13,10],democrats:[9,10,8,7],
+  yisrael_beiteinu:[8,8,8,7],shas:[8,8,8,8],otzma:[8,8,8,9],utj:[7,7,7,7],
+  religious_zionism:[6,7,7,7],joint_list:[5,5,5,5],raam:[5,5,5,5],reservists:[4,4,4,0],
+  amcha:[0,0,4,4],blue_white:[0,0,0,0],
+};
+const POLL_CHANNELS=["ערוץ 12","ערוץ 13","כאן 11","ערוץ 14"];
+const THRESHOLD=4;
+let socket=null;let myOrderId=localStorage.getItem("electionOrderId");let allPredictions=[];let actualResults=null;
+const nameInput=document.getElementById("player-name");
+const partyGrid=document.getElementById("party-grid");
+const totalBar=document.getElementById("total-bar");
+const totalLabel=document.getElementById("total-label");
+const totalRemaining=document.getElementById("total-remaining");
+const submitBtn=document.getElementById("submit-btn");
+const submitMsg=document.getElementById("submit-msg");
+const predWrap=document.getElementById("pred-table-wrap");
+const resultsCard=document.getElementById("results-card");
+const resultsWrap=document.getElementById("results-wrap");
+const connDot=document.getElementById("conn-dot");
+const connText=document.getElementById("conn-text");
+nameInput.value=localStorage.getItem("electionName")||"";
+nameInput.addEventListener("input",()=>{localStorage.setItem("electionName",nameInput.value.trim());validateForm();});
+const inputs={};
+PARTIES.forEach((p)=>{
+  const row=document.createElement("div");row.className="party-row";
+  const info=document.createElement("div");info.className="party-info";
+  info.innerHTML='<div class="party-name">'+esc(p.name)+'</div><div class="party-leader">'+esc(p.leader)+'</div>';
+  const badge=document.createElement("span");badge.className="threshold-badge";badge.id="badge-"+p.id;
+  const inp=document.createElement("input");inp.type="number";inp.min=0;inp.max=120;inp.value=0;inp.id="input-"+p.id;
+  inp.addEventListener("input",()=>{updateTotal();});inp.addEventListener("focus",()=>inp.select());
+  inputs[p.id]=inp;row.appendChild(info);row.appendChild(badge);row.appendChild(inp);partyGrid.appendChild(row);
+});
+function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+function getValues(){const v={};PARTIES.forEach((p)=>{v[p.id]=Math.max(0,parseInt(inputs[p.id].value)||0);});return v;}
+function updateTotal(){
+  const vals=getValues();let sum=0;PARTIES.forEach((p)=>{sum+=vals[p.id];});
+  totalLabel.textContent="סה״כ: "+sum+" / 120";totalRemaining.textContent="נותרו: "+(120-sum);
+  totalBar.className="total-bar "+(sum===120?"ok":"bad");
+  PARTIES.forEach((p)=>{
+    const badge=document.getElementById("badge-"+p.id);const v=vals[p.id];
+    if(v>=THRESHOLD){badge.textContent="✓ עובר/ת";badge.className="threshold-badge pass";}
+    else if(v>0){badge.textContent="✗ לא עובר/ת";badge.className="threshold-badge fail";}
+    else{badge.textContent="";badge.className="threshold-badge";}
+  });validateForm();
+}
+function validateForm(){const vals=getValues();let sum=0;PARTIES.forEach((p)=>{sum+=vals[p.id];});submitBtn.disabled=!(sum===120&&nameInput.value.trim().length>0);}
+submitBtn.addEventListener("click",()=>{const name=nameInput.value.trim();if(!name)return;send("SUBMIT_PREDICTION",{name,orderId:myOrderId,predictions:getValues()});submitBtn.disabled=true;});
+function buildPollsTable(){
+  const wrap=document.getElementById("poll-table-wrap");
+  let html='<table><thead><tr><th>מפלגה</th>';
+  POLL_CHANNELS.forEach((ch)=>{html+='<th>'+esc(ch)+'</th>';});html+='</tr></thead><tbody>';
+  PARTIES.forEach((p)=>{
+    const polls=POLLS[p.id]||[0,0,0,0];html+='<tr><td style="text-align:right;font-weight:bold">'+esc(p.name)+'</td>';
+    polls.forEach((v)=>{let cls="",txt="—";if(v>=THRESHOLD){cls="cell-pass";txt=v;}else if(v>0){cls="cell-border";txt=v;}else{cls="cell-zero";}html+='<td class="'+cls+'">'+txt+'</td>';});
+    html+='</tr>';
+  });html+='</tbody></table>';wrap.innerHTML=html;
+}
+buildPollsTable();
+function renderPredictions(){
+  if(allPredictions.length===0){predWrap.innerHTML='<p style="color:#6b7280">עדיין אין ניחושים.</p>';return;}
+  let html='<table><thead><tr><th>שם</th>';PARTIES.forEach((p)=>{html+='<th>'+esc(p.abbr)+'</th>';});html+='</tr></thead><tbody>';
+  allPredictions.forEach((pred)=>{
+    const isMe=pred.orderId===myOrderId;html+='<tr class="'+(isMe?'my-row':'')+'">';
+    html+='<td style="text-align:right;font-weight:'+(isMe?'bold':'normal')+'">'+esc(pred.name)+'</td>';
+    PARTIES.forEach((p)=>{const v=pred.predictions[p.id]||0;let cls="",txt="—";if(v>=THRESHOLD){cls="cell-pass";txt=v;}else if(v>0){cls="cell-border";txt=v;}else{cls="cell-zero";}html+='<td class="'+cls+'">'+txt+'</td>';});
+    html+='</tr>';
+  });html+='</tbody></table>';predWrap.innerHTML=html;
+}
+function renderResults(){
+  if(!actualResults){resultsCard.style.display="none";return;}
+  resultsCard.style.display="block";
+  const scored=allPredictions.map((pred)=>{let dist=0;PARTIES.forEach((p)=>{dist+=Math.abs((pred.predictions[p.id]||0)-(actualResults[p.id]||0));});return{name:pred.name,orderId:pred.orderId,distance:dist/2};});
+  scored.sort((a,b)=>a.distance-b.distance);
+  const medals=["🥇","🥈","🥉"];
+  let html='<table class="dist-table"><thead><tr><th>מקום</th><th>שם</th><th>מרחק (מנדטים)</th></tr></thead><tbody>';
+  scored.forEach((s,i)=>{const medal=i<3?'<span class="medal">'+medals[i]+'</span> ':"";const isMe=s.orderId===myOrderId;
+    html+='<tr class="'+(isMe?'my-row':'')+'">';html+='<td>'+medal+(i+1)+'</td>';
+    html+='<td style="font-weight:'+(isMe?'bold':'normal')+'">'+esc(s.name)+'</td>';html+='<td>'+s.distance+'</td></tr>';
+  });html+='</tbody></table>';resultsWrap.innerHTML=html;
+}
+function connect(){
+  connDot.className="conn-dot off";connText.textContent="מתחבר...";
+  socket=new WebSocket("ws://"+window.location.host);
+  socket.addEventListener("open",()=>{connDot.className="conn-dot on";connText.textContent="מחובר";send("GET_STATE",{});});
+  socket.addEventListener("message",(e)=>{
+    let msg;try{msg=JSON.parse(e.data);}catch{return;}
+    if(msg.type==="STATE"){allPredictions=msg.payload.predictions||[];actualResults=msg.payload.actualResults||null;renderPredictions();renderResults();
+      if(myOrderId){const mine=allPredictions.find((p)=>p.orderId===myOrderId);if(mine){nameInput.value=mine.name;localStorage.setItem("electionName",mine.name);PARTIES.forEach((p)=>{inputs[p.id].value=mine.predictions[p.id]||0;});updateTotal();}}
+    }
+    if(msg.type==="PREDICTION_SAVED"){myOrderId=msg.payload.orderId;localStorage.setItem("electionOrderId",myOrderId);submitMsg.textContent="הניחוש נשמר בהצלחה! ✓";setTimeout(()=>{submitMsg.textContent="";},3000);validateForm();}
+    if(msg.type==="UPDATE"){allPredictions=msg.payload.predictions||[];actualResults=msg.payload.actualResults||null;renderPredictions();renderResults();}
+    if(msg.type==="ERROR"){submitMsg.textContent="שגיאה: "+(msg.payload.message||"");submitMsg.style.color="#f87171";setTimeout(()=>{submitMsg.textContent="";submitMsg.style.color="#34d399";},4000);}
+  });
+  socket.addEventListener("close",()=>{connDot.className="conn-dot off";connText.textContent="מנותק — מתחבר מחדש...";setTimeout(connect,2000);});
+}
+function send(type,payload){if(!socket||socket.readyState!==WebSocket.OPEN)return;socket.send(JSON.stringify({type,payload}));}
+connect();updateTotal();
+</script>
+</body>
+</html>
