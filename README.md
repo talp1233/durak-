@@ -1,53 +1,115 @@
-# Durak Online Lobby (Minimal)
+# Durak Online + ניחוש בחירות 2026
 
-This repo contains a working lobby + game-mode voting server with basic Durak and Omaha Custom game logic.
+הריפו הזה מכיל שני פרויקטים:
 
-## What Works
+1. **Durak Online** — משחק דוראק מרובה שחקנים בזמן אמת
+2. **ניחוש בחירות 2026** — אפליקציה לניחוש תוצאות הבחירות לכנסת ה-26
 
-- Room capacity (max 5 players).
-- Host-only start.
-- Voting for mode `4` (Omaha Custom) or `6` (Durak) with strict majority > 50%.
-- Default to Durak when no majority exists.
-- Live room updates, emoji events, and in-game state updates.
-- Durak attack/defense/take/end-round flow with deck/trump handling and a 20s turn timer.
-- Omaha Custom deal + two discard rounds + board progression to showdown with auto-discard on timeout.
-- UI indicators for Durak loser (clown hat) and Omaha winners (crown).
+---
 
-## Run Locally
+## ניחוש בחירות 2026 🗳️
 
-1. Start the server:
+### מה זה?
+אפליקציית ווב שמאפשרת לכל אחד לנחש כמה מנדטים כל מפלגה תקבל בבחירות 2026.
+כל המשתתפים רואים את הניחושים של כולם, ואחרי הבחירות — טבלת דירוג מראה מי ניחש הכי קרוב לתוצאות האמיתיות.
 
+### איך זה עובד?
+- כל משתתף מכניס את שמו ומחלק 120 מנדטים בין 14 המפלגות
+- המערכת מוודאת שסה"כ המנדטים = 120 בדיוק
+- מוצגים סימוני אחוז חסימה (מפלגה צריכה לפחות 4 מנדטים כדי לעבור)
+- טבלת סקרים אחרונים מוצגת לעזרה
+- כל הניחושים נשמרים ונראים לכולם בזמן אמת
+- אחרי הבחירות, מוכנסות התוצאות האמיתיות וטבלת מרחקים מדרגת את כולם
+
+### חישוב המרחק
+המרחק מחושב כסכום ההפרשים המוחלטים חלקי 2:
+```
+מרחק = Σ|ניחוש_i - תוצאה_i| / 2
+```
+ככל שהמרחק קטן יותר — הניחוש מדויק יותר.
+
+### ⚠️ נדרש שרת!
+האפליקציה עובדת עם שרת Node.js ו-WebSocket.
+**כדי שכל חבר יוכל לשלוח את הניחוש שלו מהטלפון**, השרת חייב לרוץ על מחשב שנגיש מהאינטרנט.
+
+**אפשרויות להרצה:**
+
+#### אפשרות 1: רשת מקומית (WiFi ביתי)
+כל מי שמחובר לאותו WiFi יכול לגשת. מריצים על המחשב:
+```bash
+node elections-server.js
+```
+ואז מוצאים את ה-IP המקומי:
+```bash
+# macOS:
+ipconfig getifaddr en0
+
+# Linux:
+hostname -I
+```
+כל חבר פותח בטלפון: `http://<IP>:4000` (לדוגמה `http://192.168.1.15:4000`)
+
+#### אפשרות 2: חשיפה לאינטרנט עם ngrok (חינמי)
+מאפשר לכל אחד לגשת מכל מקום:
+```bash
+# התקנה (פעם אחת):
+brew install ngrok   # macOS
+# או: https://ngrok.com/download
+
+# הרצה:
+node elections-server.js &
+ngrok http 4000
+```
+ngrok ייתן לך כתובת כמו `https://abc123.ngrok-free.app` — שלח את הלינק לחברים.
+
+#### אפשרות 3: שרת ענן (VPS)
+להעלות לשרת כמו Render, Railway, או VPS. הכי יציב לשימוש ארוך טווח.
+
+### הרצה מקומית
+```bash
+node elections-server.js
+```
+פתח בדפדפן: `http://localhost:4000`
+
+### הגדרת תוצאות אמיתיות (אדמין)
+אחרי הבחירות, פתח את ה-Console בדפדפן (F12) והרץ:
+```javascript
+socket.send(JSON.stringify({
+  type: "SET_RESULTS",
+  payload: {
+    password: "admin2026",
+    results: {
+      yashar: 0, likud: 0, beyachad: 0, democrats: 0,
+      yisrael_beiteinu: 0, shas: 0, otzma: 0, utj: 0,
+      religious_zionism: 0, joint_list: 0, raam: 0,
+      reservists: 0, amcha: 0, blue_white: 0
+    }
+  }
+}));
+```
+(החלף את ה-0 במנדטים האמיתיים — סה"כ חייב להיות 120)
+
+---
+
+## Durak Online 🃏
+
+### מה זה?
+משחק הקלפים דוראק (Durak) אונליין עם תמיכה ב:
+- עד 5 שחקנים בחדר
+- כללי דוראק מלאים כולל טרנספר (העברה)
+- בוטים
+- הצבעה בין מצב דוראק (6) לאומהה (4)
+- אמוג'ים בזמן אמת
+- חיבור מחדש תוך 60 שניות
+
+### הרצה
 ```bash
 node server.js
 ```
+פתח בדפדפן: `http://localhost:3000`
 
-2. Open the lobby UI:
+---
 
-Visit `http://localhost:3000` in multiple tabs to simulate players.
-
-## Event Types (WebSocket)
-
-- `JOIN` `{ name, roomCode, playerId? }`
-- `VOTE_MODE` `{ mode: "4" | "6" }`
-- `START_GAME`
-- `EMOJI_EVENT` `{ emojiCode }`
-- `GAME_ACTION` `{ type, ... }`
-
-Server responses:
-
-- `PLAYER_JOINED` `{ playerId, isHost, room }`
-- `ROOM_UPDATE` `{ room }`
-- `START_GAME` `{ room }`
-- `EMOJI_EVENT` `{ playerId, emojiCode, timestamp }`
-- `ERROR` `{ message }`
-
-## Notes
-
-Game actions include:
-
-- Durak: `PLAY_ATTACK`, `PLAY_DEFENSE`, `END_ATTACK`, `TAKE_CARDS`
-- Omaha: `DISCARD`
-
-## Reconnect
-
-If a client reconnects within 60 seconds, pass the previous `playerId` in the `JOIN` payload to resume the same seat and hand.
+## דרישות
+- [Node.js](https://nodejs.org/) (גרסה 18+)
+- אין צורך בהתקנת חבילות — הכל ללא תלויות חיצוניות
